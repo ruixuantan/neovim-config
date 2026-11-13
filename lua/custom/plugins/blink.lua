@@ -17,7 +17,7 @@ return {
       'rafamadriz/friendly-snippets',
     },
     build = function()
-      require('blink.cmp').build():wait(60000)
+      require('blink.cmp').build():pwait()
     end,
     ---@type blink.cmp.Config
     opts = {
@@ -35,6 +35,14 @@ return {
         default = { 'lsp', 'path', 'snippets', 'buffer' },
         per_filetype = {
           lua = { inherit_defaults = true, 'lazydev' },
+        },
+        providers = {
+          lazydev = {
+            name = 'LazyDev',
+            module = 'lazydev.integrations.blink',
+            -- Prioritize lazydev over LuaLS for require/module completions
+            score_offset = 100,
+          },
         },
       },
       -- Use Lua if the Rust matcher was not built (`gb` in :Lazy on blink.cmp)
