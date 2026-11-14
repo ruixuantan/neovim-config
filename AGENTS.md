@@ -14,15 +14,18 @@ The config was bootstrapped from [kickstart.nvim](https://github.com/nvim-lua/ki
 
 ```
 ~/.config/nvim/
-├── init.lua                 # Core options, keymaps, and most plugin specs
+├── init.lua                 # Core options, keymaps, lazy bootstrap and imports
 ├── lazy-lock.json           # Plugin lockfile (commit when plugins change)
 ├── lua/
 │   ├── kickstart/
 │   │   ├── health.lua       # :checkhealth extension
 │   │   └── plugins/         # Optional plugin modules (return lazy specs)
 │   └── custom/
-│       └── plugins/         # **Preferred place for new plugins**
-│           └── init.lua     # Your overrides (LSP, opencode, conform, …)
+│       └── plugins/         # Plugin specs split by feature; auto-imported by lazy
+│           ├── lsp.lua      # LSP servers, Mason tools, diagnostics and LSP keymaps
+│           ├── conform.lua  # Formatters and format-on-save
+│           ├── gitsigns.lua # Git signs and buffer-local keymaps
+│           └── *.lua        # Completion, theme, Telescope, Treesitter, etc.
 ├── doc/                     # Vim help tags (kickstart legacy; low priority)
 ├── .stylua.toml             # Lua formatter settings
 └── README.md
@@ -35,16 +38,17 @@ The config was bootstrapped from [kickstart.nvim](https://github.com/nvim-lua/ki
 | New plugin or heavy customization | `lua/custom/plugins/*.lua` (add files; lazy auto-imports the folder) |
 | Small tweak to an existing kickstart module | `lua/kickstart/plugins/<name>.lua` |
 | Global options, leader, basic keymaps | `init.lua` (top sections) |
-| Colorscheme, treesitter, telescope, cmp | `init.lua` (plugin table) — consider moving to `custom/` when touching a large block |
-| LSP servers, formatters, Mason tools | `lua/custom/plugins/init.lua` |
-| AI in editor (opencode) | `lua/custom/plugins/init.lua` |
+| Colorscheme, Treesitter, Telescope, completion | `lua/custom/plugins/colorscheme.lua`, `treesitter.lua`, `telescope.lua`, `blink.lua` |
+| LSP servers, diagnostics, Mason tools | `lua/custom/plugins/lsp.lua` |
+| Formatters and format-on-save | `lua/custom/plugins/conform.lua` |
+| Git signs and keymaps | `lua/custom/plugins/gitsigns.lua` |
 
-**Default rule for agents:** add new behavior under `lua/custom/plugins/` rather than growing `init.lua` further. Split into new files (e.g. `lua/custom/plugins/telescope.lua`) when a spec exceeds ~80 lines.
+**Default rule for agents:** keep plugin specs under `lua/custom/plugins/`, grouped by feature, rather than growing `init.lua`. Keep a plugin's dependencies nested in its spec unless they need independent configuration. There is no `lua/custom/plugins/init.lua`; lazy imports the feature files directly.
 
 ## Plugin system
 
 - **Manager:** [lazy.nvim](https://github.com/folke/lazy.nvim) — bootstrapped at the bottom of `init.lua`.
-- **Spec style:** Lua tables returned from `require('lazy').setup({ ... })` and from files under `lua/**/plugins/`.
+- **Spec style:** files under `lua/**/plugins/` return a plugin spec or a list of specs; `require('lazy').setup({ ... })` in `init.lua` imports them.
 - **Custom plugins:** enabled via `{ import = 'custom.plugins' }` in `init.lua`.
 - **Kickstart modules:** `require 'kickstart.plugins.*'` entries in `init.lua` load optional features (debug, lint, neo-tree, etc.).
 
@@ -66,14 +70,12 @@ After changing plugin specs:
 
 ## Language tooling
 
-Configured in `lua/custom/plugins/init.lua`:
+- **LSP** (`lua/custom/plugins/lsp.lua`, via mason-lspconfig): `clangd`, `ruff`, `pyright`, `zls`, `lua_ls`
+- **Formatters** (`lua/custom/plugins/conform.lua`): `stylua` (lua), `sqlfluff` (sql); format-on-save with per-filetype LSP fallback rules
+- **Mason tools** (`lsp.lua`): derived from LSP list + `stylua`, `sqlfluff`
+- **Treesitter** (`lua/custom/plugins/treesitter.lua`): `bash`, `lua`, `luadoc`, `markdown`, `markdown_inline`, `vim`, `python`, `rust`, `zig`; parsers installed via `treesitter.install(...)`
 
-- **LSP (via mason-lspconfig):** `clangd`, `gopls`, `ruff`, `pyright`, `rust_analyzer`, `zls`, `lua_ls`
-- **Formatters (conform):** `stylua` (lua), `sqlfluff` (sql); format-on-save with per-filetype LSP fallback rules
-- **Mason tools:** derived from LSP list + `stylua`, `sqlfluff`
-- **Treesitter** (`init.lua`): `bash`, `c_sharp`, `lua`, `luadoc`, `markdown`, `vim`, `python`, `rust`, `zig`
-
-When adding a language: update `servers` and usually `ensure_installed` / `formatters_by_ft` / treesitter `ensure_installed` together.
+When adding a language: update `servers` in `lsp.lua` and, as needed, Mason tools, `formatters_by_ft` in `conform.lua`, and the parser list in `treesitter.lua`.
 
 ## Notable plugins (quick reference)
 
@@ -81,13 +83,12 @@ When adding a language: update `servers` and usually `ensure_installed` / `forma
 |------|--------|
 | File tree | neo-tree (`kickstart.plugins.neo-tree`) |
 | Fuzzy find | telescope + fzf-native |
-| Completion | blink.cmp v2 + `blink.lib` + LuaSnip (`lua/custom/plugins/blink.lua`); LSP capabilities in `custom/plugins/init.lua` |
-| Git | gitsigns (duplicate spec: init + kickstart module — prefer one place when refactoring) |
+| Completion | blink.cmp v2 + `blink.lib` + LuaSnip (`lua/custom/plugins/blink.lua`); LSP capabilities in `lua/custom/plugins/lsp.lua` |
+| Git | gitsigns (`lua/custom/plugins/gitsigns.lua`); signs and keymaps consolidated here |
 | Test | neotest-dotnet |
 | Theme | kanagawa-wave |
-| CSV | rainbow_csv |
 | Markdown preview | markdown-preview.nvim |
-| AI | opencode.nvim (+ snacks.nvim) |
+| Markdown rendering | render-markdown.nvim (`lua/custom/plugins/render-markdown.lua`) |
 | Debug | kickstart.plugins.debug |
 
 ## Agent workflow
@@ -101,7 +102,7 @@ When adding a language: update `servers` and usually `ensure_installed` / `forma
 
 ### Verification checklist
 
-- [ ] `nvim --headless "+lua require('lazy').setup({})" +qa"` or open `nvim` without Lua errors on startup
+- [ ] `nvim --headless +qa` or open `nvim` without Lua errors on startup
 - [ ] `:checkhealth` — especially `lazy`, `mason`, LSP attach
 - [ ] `:Lazy` — new/changed plugins show correct state
 - [ ] If LSP changed: open a sample file for that filetype and `:LspInfo`
@@ -130,11 +131,11 @@ return {
 }
 ```
 
-**Add an LSP server** — extend `servers` and `ensure_installed` in `lua/custom/plugins/init.lua`, follow existing `mason-lspconfig` handler pattern.
+**Add an LSP server** — extend `servers` in `lua/custom/plugins/lsp.lua`. Mason's install list and `automatic_enable` are derived from its keys; the existing loop configures servers via `vim.lsp.config`.
 
 **Add a keymap** — prefer buffer-local maps inside LSP `LspAttach` or plugin `config`; global maps go near other keymaps in `init.lua` or the plugin's config block.
 
-**Change colorscheme** — edit the `kanagawa.nvim` block in `init.lua` or move it to `custom/plugins/`.
+**Change colorscheme** — edit `lua/custom/plugins/colorscheme.lua`.
 
 ## Documentation debt (optional human follow-ups)
 
