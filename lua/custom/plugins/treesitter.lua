@@ -29,7 +29,7 @@ return {
     })
 
     -- Parser installation is asynchronous; attach open buffers once it finishes.
-    treesitter.install({ 'bash', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'vim', 'python', 'rust', 'zig' }):await(function(err, installed)
+    treesitter.install({ 'bash', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'vim', 'python', 'rust', 'zig', 'sql' }):await(function(err, installed)
       if err or not installed then
         return
       end
